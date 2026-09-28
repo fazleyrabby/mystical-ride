@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07131b" />
+    <meta name="description" content="A quiet third-person boat ride through a jungle waterway in moonlight, dawn, or rain." />
+    <title>Moonwater — A quiet boat ride</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Libre+Caslon+Display&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main id="app" aria-label="Boat ride through changing weather">
+      <div id="scene" aria-hidden="true"></div>
+      <div class="veil" aria-hidden="true"></div>
+      <header class="site-header">
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Moonwater</span></div>
+        <div class="header-actions">
+          <button id="weather-button" class="text-button" type="button" aria-label="Change weather, current: Moonlit night">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v2.5M4.8 5.2l1.8 1.8M3 12h2.5M4.8 18.8l1.8-1.8M12 18.5V21M19.2 18.8l-1.8-1.8M21 12h-2.5M19.2 5.2l-1.8 1.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="12" cy="12" r="4.3" stroke="currentColor" stroke-width="1.4"/></svg>
+            <span id="weather-label">Moonlit</span>
+          </button>
+          <button id="sound-button" class="text-button" type="button" aria-pressed="false" aria-label="Turn ambient sound on">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path class="sound-wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span>Sound off</span>
+          </button>
+        </div>
+      </header>
+      <div class="scene-copy">
+        <h1 id="scene-heading">A quieter way<br />through the night.</h1>
+        <p id="scene-prompt">Set out. Follow the light.</p>
+      </div>
+      <div class="hud">
+        <div class="controls-desktop" aria-label="Keyboard controls">
+          <div class="control-group"><span class="keys"><kbd>W</kbd><kbd>↑</kbd></span><span>Forward</span></div>
+          <div class="control-group"><span class="keys"><kbd>A</kbd><kbd>D</kbd><kbd>←</kbd><kbd>→</kbd></span><span>Steer</span></div>
+          <div class="control-group"><span class="keys"><kbd>S</kbd><kbd>↓</kbd></span><span>Reverse</span></div>
+        </div>
+        <div class="hud-right"><span id="status">A lake, all to yourself</span><span class="visitor-counter" title="Total visits"><span class="visitor-counter-dot" aria-hidden="true"></span><span>Visits</span><span id="visitor-count" aria-live="polite">0</span></span><button id="reset-button" class="reset-button" type="button">Reset ride <span aria-hidden="true">↗</span></button></div>
+      </div>
+      <div class="touch-controls" aria-label="Boat controls">
+        <button data-control="left" aria-label="Steer left">←</button>
+        <div><button data-control="forward" aria-label="Move forward">↑</button><button data-control="reverse" aria-label="Move backward">↓</button></div>
+        <button data-control="right" aria-label="Steer right">→</button>
+      </div>
+      <div id="loading" class="loading" role="status">Preparing the water…</div>
+      <div id="error" class="error" role="alert" hidden>This browser could not start the 3D scene. Try a browser with WebGL enabled.</div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
