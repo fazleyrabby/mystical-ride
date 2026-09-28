@@ -1,4 +1,4 @@
-# Moonlit Boat Ride
+# Mystical Boatride
 
 <!-- impeccable:product-schema 1 -->
 
