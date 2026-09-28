@@ -1,4 +1,4 @@
-# Mystical Boatride
+# Mystical Ride
 
 <!-- impeccable:product-schema 1 -->
 

@@ -1,4 +1,4 @@
-# Mystical Boatride
+# Mystical Ride
 
 A full-screen Three.js boat ride through a jungle waterway in moonlight, dawn, or rain.
 
