@@ -117,6 +117,56 @@ starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starColors,
 const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ size: .72, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: .8, depthWrite: false }));
 scene.add(stars);
 
+// ── Fireflies ──────────────────────────────────────────────────────────
+const fireflyCount=compactDevice?24:52;
+const fireflyHomes=new Float32Array(fireflyCount*3);
+const fireflyParams=new Float32Array(fireflyCount*4);
+for(let i=0;i<fireflyCount;i++){
+  const side=random()>.5?1:-1;const z=range(-145,72);const edge=shoreX(side,z);
+  fireflyHomes[i*3]=edge+side*range(.3,4.5);fireflyHomes[i*3+1]=range(1.0,4.2);fireflyHomes[i*3+2]=z;
+  fireflyParams[i*4]=range(.5,1.8);fireflyParams[i*4+1]=range(.18,.42);fireflyParams[i*4+2]=range(.12,.28);fireflyParams[i*4+3]=range(0,TAU);
+}
+const fireflyGeo=new THREE.BufferGeometry();
+fireflyGeo.setAttribute('position',new THREE.Float32BufferAttribute(fireflyHomes,3));
+fireflyGeo.setAttribute('aParams',new THREE.Float32BufferAttribute(fireflyParams,4));
+const fireflyMaterial=new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+  uniforms:{uTime:{value:0},uWeather:{value:0}},
+  vertexShader:`
+    attribute vec4 aParams;uniform float uTime;uniform float uWeather;
+    varying float vGlow;varying float vWarmth;
+    void main(){
+      float t=uTime,r=aParams.x,spd=aParams.y,freq=aParams.z,ph=aParams.w;
+      vec3 pos=position+vec3(
+        r*sin(t*spd+ph)+r*.32*sin(t*spd*1.73+ph*2.3),
+        r*.35*sin(t*spd*1.17+ph*.7+1.2),
+        r*sin(t*spd*.81+ph*1.4+2.8)+r*.28*sin(t*spd*2.1+ph));
+      float cycle=fract(t*freq+ph*.159);
+      float onRatio=.22,ramp=.06;
+      vGlow=smoothstep(0.,ramp,cycle)*smoothstep(onRatio,onRatio-ramp,cycle);
+      vGlow*=vGlow;
+      vWarmth=smoothstep(0.,.12,cycle);
+      float dawn=1.-step(.5,abs(uWeather-1.));float rain=step(1.5,uWeather);
+      vGlow*=(1.-dawn)*(1.-rain);
+      vec4 mv=modelViewMatrix*vec4(pos,1.);
+      gl_PointSize=max((1.4+vGlow*5.)*160./-mv.z,0.);
+      gl_Position=projectionMatrix*mv;
+    }`,
+  fragmentShader:`
+    varying float vGlow;varying float vWarmth;
+    void main(){
+      if(vGlow<.005)discard;
+      float d=length(gl_PointCoord-.5)*2.;
+      float core=exp(-d*d*14.);float halo=exp(-d*d*1.8)*.18;float shape=core+halo;
+      float alpha=shape*vGlow;
+      vec3 col=mix(vec3(.35,.58,.14),vec3(.68,.80,.28),core/max(core+halo,.001));
+      col=mix(col,vec3(.82,.72,.24),vWarmth*.25);
+      gl_FragColor=vec4(col*alpha*.85,alpha*.65);
+    }`
+});
+const fireflies=new THREE.Points(fireflyGeo,fireflyMaterial);
+fireflies.frustumCulled=false;scene.add(fireflies);
+
 function moonTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 512;
@@ -200,6 +250,70 @@ const sunHalo=new THREE.Mesh(new THREE.PlaneGeometry(63,63),new THREE.MeshBasicM
 sunHalo.position.copy(sunPosition);sunHalo.position.z-=.25;sunHalo.visible=false;scene.add(sunHalo);
 const sun=new THREE.Mesh(new THREE.PlaneGeometry(14,14),new THREE.MeshBasicMaterial({map:sunTexture(),transparent:true,depthWrite:false,fog:false,toneMapped:false}));
 sun.position.copy(sunPosition);sun.visible=false;scene.add(sun);
+
+// ── Shooting Stars ─────────────────────────────────────────────────────
+const ssSegments=24;
+const ssPositions=new Float32Array(ssSegments*2*3);
+const ssUvs=new Float32Array(ssSegments*2*2);
+const ssIndices=[];
+for(let i=0;i<ssSegments;i++){
+  const t=i/(ssSegments-1);
+  ssUvs[i*4]=t;ssUvs[i*4+1]=0;ssUvs[i*4+2]=t;ssUvs[i*4+3]=1;
+  if(i<ssSegments-1){const b=i*2;ssIndices.push(b,b+1,b+2,b+1,b+3,b+2);}
+}
+const ssGeo=new THREE.BufferGeometry();
+ssGeo.setAttribute('position',new THREE.BufferAttribute(ssPositions,3).setUsage(THREE.DynamicDrawUsage));
+ssGeo.setAttribute('uv',new THREE.Float32BufferAttribute(ssUvs,2));
+ssGeo.setIndex(ssIndices);
+const ssMaterial=new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+  uniforms:{uProgress:{value:-1}},
+  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`
+    uniform float uProgress;varying vec2 vUv;
+    void main(){
+      if(uProgress<0.)discard;
+      float along=vUv.x,across=abs(vUv.y-.5)*2.;
+      float headDist=abs(along-uProgress);
+      float head=exp(-headDist*headDist*900.);
+      float behind=smoothstep(uProgress+.01,uProgress-.02,along);
+      float fade=exp(-(uProgress-along)*3.5);
+      float trail=behind*fade;
+      float hw=exp(-across*across*28.);
+      float tw=exp(-across*across*9.);
+      float brightness=head*hw*3.+trail*tw*.6;
+      if(brightness<.005)discard;
+      vec3 hc=vec3(.93,.96,1.);vec3 tc=vec3(.80,.72,.50);
+      vec3 col=mix(tc,hc,clamp(head/max(head+trail*.5,.001),0.,1.));
+      gl_FragColor=vec4(col*brightness,brightness);
+    }`
+});
+const shootingStar=new THREE.Mesh(ssGeo,ssMaterial);
+shootingStar.frustumCulled=false;shootingStar.visible=false;scene.add(shootingStar);
+const ssState={active:false,nextAt:range(8,15),progress:0,duration:0};
+function activateShootingStar(){
+  const a=range(0,TAU),elev=range(.3,.78),rad=210;
+  const h=Math.sqrt(1-elev*elev);
+  const start=new THREE.Vector3(Math.cos(a)*h*rad+camera.position.x,elev*rad,Math.sin(a)*h*rad+camera.position.z);
+  const dir=new THREE.Vector3(range(-.8,.8),range(-.7,-.2),range(-.8,.8)).normalize();
+  const len=range(16,32);
+  const toCamera=new THREE.Vector3().subVectors(camera.position,start).normalize();
+  const widthDir=new THREE.Vector3().crossVectors(dir,toCamera);
+  if(widthDir.lengthSq()<.001)widthDir.crossVectors(dir,new THREE.Vector3(0,1,0));
+  widthDir.normalize();
+  const hw=.14;
+  const pos=ssGeo.attributes.position;
+  for(let i=0;i<ssSegments;i++){
+    const t=i/(ssSegments-1);
+    const px=start.x+dir.x*t*len,py=start.y+dir.y*t*len,pz=start.z+dir.z*t*len;
+    const w=hw*(1-t*.7);
+    pos.setXYZ(i*2,px-widthDir.x*w,py-widthDir.y*w,pz-widthDir.z*w);
+    pos.setXYZ(i*2+1,px+widthDir.x*w,py+widthDir.y*w,pz+widthDir.z*w);
+  }
+  pos.needsUpdate=true;
+  ssState.active=true;ssState.progress=-.1;ssState.duration=range(.35,.7);
+  shootingStar.visible=true;ssMaterial.uniforms.uProgress.value=-.1;
+}
 
 const rainCount=compactDevice?520:900;
 const rainPositions=new Float32Array(rainCount*6);
@@ -406,6 +520,71 @@ reflector.onBeforeRender=function(...args){
 waterUniforms.uReflection.value=reflector.getRenderTarget().texture;
 waterUniforms.uTextureMatrix.value=reflector.material.uniforms.textureMatrix.value;
 scene.add(reflector);
+
+// ── Mist Patches ───────────────────────────────────────────────────────
+const mistCount=compactDevice?8:14;
+const mistPatches=[];
+const mistMaterial=new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,side:THREE.DoubleSide,fog:false,
+  uniforms:{uTime:{value:0},uWeather:{value:0}},
+  vertexShader:`varying vec2 vUv;varying vec2 vWorld;
+    void main(){vUv=uv;vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+  fragmentShader:`
+    uniform float uTime;uniform float uWeather;varying vec2 vUv;varying vec2 vWorld;
+    float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y);}
+    void main(){
+      vec2 p=vWorld*.14+vec2(uTime*.012,uTime*.007);
+      float n=noise(p)*.55+noise(p*2.15+3.7)*.28+noise(p*4.4-1.2)*.14;
+      float edge=smoothstep(0.,.22,vUv.x)*smoothstep(1.,.78,vUv.x)*smoothstep(0.,.22,vUv.y)*smoothstep(1.,.78,vUv.y);
+      float density=1.+step(1.5,uWeather)*.6;
+      float dawn=1.-step(.5,abs(uWeather-1.));
+      float alpha=smoothstep(.32,.58,n)*edge*.18*density;
+      vec3 col=mix(vec3(.10,.17,.20),vec3(.22,.16,.15),dawn);
+      gl_FragColor=vec4(col,alpha);
+    }`
+});
+for(let i=0;i<mistCount;i++){
+  const size=range(12,22);
+  const mist=new THREE.Mesh(new THREE.PlaneGeometry(size,size),mistMaterial);
+  mist.rotation.x=-Math.PI/2;mist.position.set(range(-15,15),range(-.12,.2),range(-135,62));
+  mist.userData.driftPhase=range(0,TAU);mist.userData.homeX=mist.position.x;mist.userData.homeZ=mist.position.z;
+  mistPatches.push(mist);scene.add(mist);
+}
+
+// ── Fish Ripple Events ─────────────────────────────────────────────────
+const maxSplashes=5;
+const splashUniforms={uTime:{value:0},uSplashes:{value:Array.from({length:maxSplashes},()=>new THREE.Vector4(0,0,-10,0))}};
+const fishRippleOverlay=new THREE.Mesh(
+  new THREE.PlaneGeometry(90,280),
+  new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+    polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1,
+    uniforms:splashUniforms,
+    vertexShader:`varying vec2 vWorld;void main(){vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+    fragmentShader:`
+      uniform float uTime;uniform vec4 uSplashes[${maxSplashes}];varying vec2 vWorld;
+      void main(){
+        float total=0.;
+        for(int i=0;i<${maxSplashes};i++){
+          float age=uTime-uSplashes[i].z;
+          if(age<0.||age>4.)continue;
+          float dist=length(vWorld-uSplashes[i].xy);
+          float radius=age*1.4;float rw=.06+age*.025;
+          float r1=exp(-pow((dist-radius)/rw,2.));
+          float r2=exp(-pow((dist-radius*.6)/(rw*1.3),2.))*.45;
+          float r3=exp(-pow((dist-radius*.3)/(rw*1.6),2.))*.2;
+          float life=1.-smoothstep(1.8,4.,age);
+          total+=(r1+r2+r3)*life;
+        }
+        total=min(total,1.);
+        gl_FragColor=vec4(vec3(.055,.11,.13)*total*1.5,total*.13);
+      }`
+  })
+);
+fishRippleOverlay.rotation.x=-Math.PI/2;fishRippleOverlay.position.set(0,-.37,-40);
+fishRippleOverlay.frustumCulled=false;scene.add(fishRippleOverlay);
+let splashCursor=0,nextSplashAt=range(3,7);
 
 const soil = new THREE.MeshBasicMaterial({ color: 0x061315, side: THREE.DoubleSide, fog: true });
 const swayingTrees = [];
@@ -733,6 +912,23 @@ for(const z of [-1.99,1.92]){
 }
 const bowTip=new THREE.Mesh(new THREE.SphereGeometry(.067,12,8),rimMaterial);
 bowTip.position.set(0,.535,-2.42);hull.add(bowTip);
+// ── Boat Lantern ───────────────────────────────────────────────────────
+const lanternPoleY=.22,lanternTopY=.72,lanternZ=1.85;
+const lanternFrameMat=new THREE.MeshStandardMaterial({color:0x2a3230,metalness:.72,roughness:.48});
+const lanternPole=new THREE.Mesh(new THREE.CylinderGeometry(.014,.019,lanternTopY-lanternPoleY,5),iron);
+lanternPole.position.set(0,(lanternPoleY+lanternTopY)/2,lanternZ);hull.add(lanternPole);
+const lRingGeo=new THREE.TorusGeometry(.048,.005,5,8);
+for(const ry of [lanternTopY+.07,lanternTopY-.05]){const ring=new THREE.Mesh(lRingGeo,lanternFrameMat);ring.position.set(0,ry,lanternZ);ring.rotation.x=Math.PI/2;hull.add(ring);}
+for(let i=0;i<4;i++){const a=i*Math.PI/2,r=.046;const bar=new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.125,4),lanternFrameMat);bar.position.set(Math.cos(a)*r,lanternTopY+.01,lanternZ+Math.sin(a)*r);hull.add(bar);}
+const lCap=new THREE.Mesh(new THREE.ConeGeometry(.05,.035,6),lanternFrameMat);lCap.position.set(0,lanternTopY+.105,lanternZ);hull.add(lCap);
+const lanternGlassMat=new THREE.MeshStandardMaterial({color:0xffe4a8,emissive:0xffcc66,emissiveIntensity:.4,transparent:true,opacity:.22,side:THREE.DoubleSide,depthWrite:false});
+const lGlassGeo=new THREE.PlaneGeometry(.076,.11);
+for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4,r=.04;const pane=new THREE.Mesh(lGlassGeo,lanternGlassMat);pane.position.set(Math.cos(a)*r,lanternTopY+.01,lanternZ+Math.sin(a)*r);pane.rotation.y=a;hull.add(pane);}
+const lanternFlameMat=new THREE.MeshBasicMaterial({color:0xffd898,transparent:true,opacity:.85});
+const lanternFlame=new THREE.Mesh(new THREE.SphereGeometry(.015,6,5),lanternFlameMat);
+lanternFlame.position.set(0,lanternTopY+.005,lanternZ);hull.add(lanternFlame);
+const lanternLight=new THREE.PointLight(0xffcc77,2.6,13,1.8);
+lanternLight.position.set(0,lanternTopY+.015,lanternZ);hull.add(lanternLight);
 const boatFloatY=-.23;
 boat.position.set(0,boatFloatY,7); scene.add(boat);
 
@@ -802,6 +998,16 @@ function playWaterLap(){
   const pan=audioContext.createStereoPanner();pan.pan.value=range(-.55,.55);
   source.connect(filter).connect(gain).connect(pan).connect(audioGain);
   source.start(now);source.stop(now+.6);
+}
+function playFishSplash(){
+  if(!audioContext||soundButton.getAttribute('aria-pressed')!=='true')return;
+  const now=audioContext.currentTime;
+  const source=audioContext.createBufferSource();source.buffer=lapBuffer;source.playbackRate.value=range(1.2,1.8);
+  const filter=audioContext.createBiquadFilter();filter.type='bandpass';filter.frequency.value=range(600,1200);filter.Q.value=.9;
+  const gain=audioContext.createGain();
+  gain.gain.setValueAtTime(.0001,now);gain.gain.linearRampToValueAtTime(.04,now+.02);gain.gain.exponentialRampToValueAtTime(.0001,now+.3);
+  const pan=audioContext.createStereoPanner();pan.pan.value=range(-.7,.7);
+  source.connect(filter).connect(gain).connect(pan).connect(audioGain);source.start(now);source.stop(now+.35);
 }
 function playJungleCall(){
   if(!audioContext||soundButton.getAttribute('aria-pressed')!=='true')return;
@@ -911,6 +1117,22 @@ function animate(){
   hull.rotation.z=Math.sin(elapsed*1.1)*.013+turn*.016;
   hull.rotation.x=Math.sin(elapsed*1.33)*.012+clamp(speed/4,-1,1)*.012;
   for(const tree of swayingTrees)tree.group.rotation.z=Math.sin(elapsed*.75+tree.phase)*tree.strength;
+  fireflyMaterial.uniforms.uTime.value=elapsed;fireflyMaterial.uniforms.uWeather.value=weatherMode;
+  if(ssState.active){
+    ssState.progress+=dt/ssState.duration;ssMaterial.uniforms.uProgress.value=ssState.progress;
+    if(ssState.progress>1.6){ssState.active=false;shootingStar.visible=false;ssState.nextAt=elapsed+range(12,28);}
+  }
+  if(!ssState.active&&elapsed>=ssState.nextAt&&weatherMode===0)activateShootingStar();
+  mistMaterial.uniforms.uTime.value=elapsed;mistMaterial.uniforms.uWeather.value=weatherMode;
+  for(const patch of mistPatches){patch.position.x=patch.userData.homeX+Math.sin(elapsed*.03+patch.userData.driftPhase)*4.5;patch.position.z=patch.userData.homeZ+Math.cos(elapsed*.02+patch.userData.driftPhase*1.3)*3.5;}
+  splashUniforms.uTime.value=elapsed;
+  if(elapsed>=nextSplashAt){
+    const sx=range(-14,14),sz=range(-130,60);
+    splashUniforms.uSplashes.value[splashCursor].set(sx,sz,elapsed,1);splashCursor=(splashCursor+1)%maxSplashes;
+    playFishSplash();nextSplashAt=elapsed+range(4,9);
+  }
+  const flicker=1.+Math.sin(elapsed*7.3)*.06+Math.sin(elapsed*13.1)*.04+Math.sin(elapsed*23.7)*.02+Math.sin(elapsed*3.1)*.08;
+  lanternLight.intensity=2.6*flicker;lanternGlassMat.emissiveIntensity=.35+flicker*.12;lanternFlame.scale.setScalar(.9+Math.sin(elapsed*11.7)*.12);
   if(weatherMode===2){
     rain.position.set(camera.position.x,0,camera.position.z-12);
     for(let i=0;i<rainCount;i++){
