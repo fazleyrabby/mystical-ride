@@ -16,7 +16,7 @@ People exploring a quiet, interactive night scene from a third-person view.
 
 ## Product Purpose
 
-Let someone steer an empty boat around a moonlit lake and enjoy the atmosphere.
+Let someone guide a boatman's wooden boat along a moonlit waterway and enjoy the atmosphere.
 
 ## Operating Context
 
@@ -26,8 +26,11 @@ Full-screen browser experience controlled with a keyboard. The scene includes wa
 
 - Keyboard steering and movement.
 - Third-person camera following the boat.
-- Empty, visible boat.
+- Japanese river boat (wasen) with a boatman seated at the stern, sculling a single oar.
+- A long, winding swamp channel (about 720 units) through deep jungle with large trees, hanging moss, and stilt roots standing in the water.
+- Set dressing: two torii gates standing in the water, stone lanterns, drifting paper lanterns, lotus, reeds, duckweed along the banks, and a pagoda where the water ends.
 - Moonlight reflecting on animated water.
+- Four weathers: moonlit night, dawn, rain, and a storm with gale wind, lightning, and a waterspout standing in the channel that drags the boat in when approached.
 - Subtle wind movement in shoreline trees and the boat.
 - References supplied by the user: three attached images and four links.
 
